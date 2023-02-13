@@ -20,7 +20,7 @@ def test(model, data, citreon, device):
     TODO: Complete this function that can take a model and a
           testing data loader and will get the test accuray/loss of the model
           Remember to include any debugging/profiling hooks that you might need
-    '''    
+    '''
     model.eval()
     test_loss = 0
     test_acc = 0
@@ -96,7 +96,7 @@ def net(model_name):
     num_classes = 133 # number of classes in dataset
     # load a pre-trained network
     model = models.__dict__[model_name](pretrained=True)
-    
+
     #Freeze parameters
     for parameter in model.parameters():
         parameter.requires_grad = False
@@ -104,13 +104,16 @@ def net(model_name):
     # load resnet18
     if model_name == 'resnet18':
         input_feat = model.fc.in_features
-        model.fc = nn.Linear(input_feat, num_classes)
+        model.fc = nn.Sequential(
+            nn.Linear(input_feat, num_classes)
+        )
 
     elif model_name == 'vgg13':
         input_feat = model.classifier[6].in_features
-        model.classifier[6] = nn.Linear(input_feat, num_classes)
+        model.classifier[6] = nn.Sequential(
+            nn.Linear(input_feat, num_classes)
+        )
 
-    # model = models.resnet18(pretrained=True)
     return model
 
 
@@ -161,7 +164,7 @@ def create_data_loaders(data, batch_size):
 
 def main(args):
     ## device agnostic
-    device = 'cuda' if args.gpu == 1 and torch.cuda.is_available() else 'cpu'
+    device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
 
     '''
     TODO: Initialize a model by calling the net function
@@ -170,19 +173,19 @@ def main(args):
     model.to(device) ## move model to device, GPU if avalaible
 
 
-    
+
     '''
     TODO: Create your loss and optimizer
     '''
     loss_criterion = nn.CrossEntropyLoss()
-    
+
     if args.arch.startswith('resnet'):
         optimizer = optim.Adam(model.fc.parameters(), lr=args.lr)
     else:
         optimizer = optim.Adam(model.classifier.parameters(), lr=args.lr)
 
 
-    
+
     '''
     create_data_loaders returns a dictionery. Key names: 'train', 'val', 'test'
     '''
@@ -218,7 +221,7 @@ if __name__=='__main__':
     '''
     TODO: Specify any training args that you might need
     '''
-    parser.add_argument('--arch', type=str, default='vgg13', choices=['resnet18', 'vgg13',], help='Load a pre-trained model archictecture (default: resnet18)')
+    parser.add_argument('--arch', type=str, default='vgg13', choices=['resnet18', 'vgg13'], help='Load a pre-trained model archictecture (default: resnet18)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
     parser.add_argument('--batch_size', type=int, default=64, help='Enter number of train batch size (default: 64)')
