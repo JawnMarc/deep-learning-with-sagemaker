@@ -173,7 +173,7 @@ def main(args):
     '''
     TODO: Initialize a model by calling the net function
     '''
-    model = net(args.model_name)
+    model = net(args.arch)
     model.to(device) ## move model to device, GPU if avalaible
 
 
@@ -222,7 +222,7 @@ if __name__=='__main__':
     '''
     TODO: Specify any training args that you might need
     '''
-    parser.add_argument('--model_name', type=str, default='resnet18', choices=['resnet18', 'vgg13',], help='Load a pre-trained model (default: resnet18)')
+    parser.add_argument('--arch', type=str, default='resnet18', choices=['resnet18', 'vgg13',], help='Load a pre-trained model archictecture (default: resnet18)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
     parser.add_argument('--batch_size', type=int, default=64, help='Enter number of train batch size (default: 64)')
