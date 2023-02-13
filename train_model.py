@@ -19,31 +19,110 @@ import smdebug.pytorch as smd
 from smdebug.profiler.utils import str2bool
 
 
-def test(model, test_loader):
+def test(model, dataloader, citreon, device, hook):
     '''
     TODO: Complete this function that can take a model and a
           testing data loader and will get the test accuray/loss of the model
           Remember to include any debugging/profiling hooks that you might need
     '''
-    pass
 
-def train(model, train_loader, criterion, optimizer):
+    hook.set_mode(smd.modes.EVAL)
+
+    model.eval()
+    test_loss = 0
+    test_acc = 0
+
+    with torch.no_grad():
+        for inputs, labels in dataloader['test']:
+            inputs, labels = inputs.to(device), labels.to(device)
+            output = model(input)
+            loss = citreon(output, labels)
+            _, preds = torch.max(output, 1)
+
+            test_loss += loss.item() * input.size(0)
+            test_acc += torch.sum(preds == labels.data)
+
+        epoch_loss = test_loss/len(dataloader['test'].dataset)
+        accuracy = test_acc.double()/len(dataloader['test'].dataset)
+
+        print(f'Test: \tLoss: {epoch_loss} \t Test Acc: {accuracy}')
+
+
+
+
+
+def train(model, dataloader, criterion, optimizer,num_epochs, device, hook):
     '''
     TODO: Complete this function that can take a model and
           data loaders for training and will get train the model
           Remember to include any debugging/profiling hooks that you might need
     '''
-    pass
+    for epoch in range(num_epochs):
+        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+        print('-' * 10)
 
-def net():
+        for phase in ['train', 'val']:
+            if phase == 'train':
+                model.train()
+                hook.set_mode(smd.modes.TRAIN)
+            else:
+                model.eval()
+                hook.set_mode(smd.modes.EVAL)
+
+            running_loss = 0
+            correct = 0
+
+            for inputs, labels in dataloader[phase]:
+                inputs, labels = inputs.to(device), labels.to(device)
+
+                # reset gradient to zero
+                optimizer.zero_grad()
+
+                # forward
+                # with torch.set_grad_enabled(phase=='train'):
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+
+                _, preds = torch.max(outputs, 1)
+
+                # backward and optimize if training mode
+                if phase == 'train':
+                    loss.backward()
+                    optimizer.step()
+
+                # getting statistics
+                running_loss += loss.item() * inputs.size(0)
+                correct += torch.sum(preds == labels.data)
+
+            epoch_loss = running_loss/len(dataloader[phase].dataset)
+            epoch_acc = correct.double()/len(dataloader[phase].dataset)
+
+            print(f'{phase}: \tLoss: {epoch_loss} \tAcc: {epoch_acc}')
+
+
+
+def net(model_name):
     '''
     TODO: Complete this function that initializes your model
           Remember to use a pretrained model
     '''
-    # model = models.__dict__(args.arch)(pretrained=True)
 
-    model = models.resnet18(pretrained=True)
+    num_classes = 133 # number of classes in dataset
+    # load a pre-trained network
+    model = models.__dict__(model_name)(pretrained=True)
+
+    # load resnet18
+    if model_name == 'resnet18':
+        input_feat = model.fc.in_features
+        model.fc = nn.Linear(input_feat, num_classes)
+
+    elif model_name == 'vgg13':
+        input_feat = model.classifier[6].in_features
+        model.classifier[6] = nn.Linear(input_feat, num_classes)
+
+    # model = models.resnet18(pretrained=True)
     return model
+
 
 
 def create_data_loaders(data, batch_size):
@@ -72,8 +151,10 @@ def create_data_loaders(data, batch_size):
             transforms.Normalize(MEAN, STD)
             ]),
     }
+
     # create training, validation and test datasets
     image_datasets = {x: datasets.ImageFolder(os.path.join(data, x), data_transforms[x]) for x in ['train', 'val', 'test']}
+
     # create training, validation and test dataloaders
     dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4) for x in ['train', 'val', 'test']}
 
@@ -82,6 +163,9 @@ def create_data_loaders(data, batch_size):
 
 
 def main(args):
+    # create hook for debugging
+    hook = smd.Hook.create_from_json_file()
+    hook.register_hook(model)
 
     ## device agnostic
     device = 'cuda' if args.gpu == 1 and torch.cuda.is_available() else 'cpu'
@@ -89,7 +173,7 @@ def main(args):
     '''
     TODO: Initialize a model by calling the net function
     '''
-    model=net()
+    model = net(args.model_name)
     model.to(device) ## move model to device, GPU if avalaible
 
 
@@ -99,28 +183,37 @@ def main(args):
     loss_criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameter(), lr=args.lr)
 
+    hook.register_loss(optimizer)
+
+
+
+    '''
+    create_data_loaders returns a dictionery. Key names: 'train', 'val', 'test'
+    '''
+    dataloader = create_data_loaders(args.data_dir, args.batch_size)
+
 
 
     '''
     TODO: Call the train function to start training your model
     Remember that you will need to set up a way to get training data from S3
     '''
-    dataloader = create_data_loaders(args.data_dir, args.batch_size)
-    model=train(model, dataloader['train'], loss_criterion, optimizer)
+    model=train(model, dataloader, loss_criterion, optimizer, args.epochs, device, hook)
 
 
 
     '''
     TODO: Test the model to see its accuracy
     '''
-    test(model, dataloader['test'], loss_criterion)
+    test(model, dataloader['test'], loss_criterion, device, hook)
 
 
 
     '''
     TODO: Save the trained model
     '''
-    torch.save(model, args.model_dir)
+    path = os.path.join(args.model_dir, 'model.pth')
+    torch.save(model, path)
 
 
 
@@ -129,7 +222,7 @@ if __name__=='__main__':
     '''
     TODO: Specify any training args that you might need
     '''
-    parser.add_argument('--arch', type=str, default='resnet18', help='Load a pre-trained model (default: resnet18)')
+    parser.add_argument('--model_name', type=str, default='resnet18', choices=['resnet18', 'vgg13',], help='Load a pre-trained model (default: resnet18)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
     parser.add_argument('--batch_size', type=int, default=64, help='Enter number of train batch size (default: 64)')
