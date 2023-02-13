@@ -163,10 +163,6 @@ def create_data_loaders(data, batch_size):
 
 
 def main(args):
-    # create hook for debugging
-    hook = smd.Hook.create_from_json_file()
-    hook.register_hook(model)
-
     ## device agnostic
     device = 'cuda' if args.gpu == 1 and torch.cuda.is_available() else 'cpu'
 
@@ -177,15 +173,18 @@ def main(args):
     model.to(device) ## move model to device, GPU if avalaible
 
 
+    
     '''
     TODO: Create your loss and optimizer
     '''
     loss_criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameter(), lr=args.lr)
 
+    
+    # create hook for debugging   
+    hook = smd.Hook.create_from_json_file()
+    hook.register_hook(model)
     hook.register_loss(optimizer)
-
-
 
     '''
     create_data_loaders returns a dictionery. Key names: 'train', 'val', 'test'
