@@ -25,9 +25,8 @@ def test(model, dataloader, citreon, device, hook):
           testing data loader and will get the test accuray/loss of the model
           Remember to include any debugging/profiling hooks that you might need
     '''
-
+    
     hook.set_mode(smd.modes.EVAL)
-
     model.eval()
     test_loss = 0
     test_acc = 0
@@ -61,7 +60,7 @@ def train(model, dataloader, criterion, optimizer,num_epochs, device, hook):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
 
-        for phase in ['train', 'val']:
+        for phase in ['train', 'valid']:
             if phase == 'train':
                 model.train()
                 hook.set_mode(smd.modes.TRAIN)
@@ -109,8 +108,8 @@ def net(model_name):
 
     num_classes = 133 # number of classes in dataset
     # load a pre-trained network
-    model = models.__dict__(model_name)(pretrained=True)
-
+    model = models.__dict__[model_name](pretrained=True)
+    
     # load resnet18
     if model_name == 'resnet18':
         input_feat = model.fc.in_features
@@ -140,9 +139,9 @@ def create_data_loaders(data, batch_size):
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD)
             ]),
-        'val': transforms.Compose([
-            transforms.Resize(224),
-            transforms.CenterCrop(224),
+        'valid': transforms.Compose([
+            # transforms.Resize(224),
+            # transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD)
             ]),
@@ -153,10 +152,15 @@ def create_data_loaders(data, batch_size):
     }
 
     # create training, validation and test datasets
-    image_datasets = {x: datasets.ImageFolder(os.path.join(data, x), data_transforms[x]) for x in ['train', 'val', 'test']}
+    image_datasets = {
+        x: datasets.ImageFolder(os.path.join(data, x), data_transforms[x])
+        for x in ['train', 'valid', 'test']
+    }
 
     # create training, validation and test dataloaders
-    dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4) for x in ['train', 'val', 'test']}
+    dataloaders_dict = {
+        x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True)
+        for x in ['train', 'valid', 'test']}
 
     return dataloaders_dict
 
@@ -164,7 +168,7 @@ def create_data_loaders(data, batch_size):
 
 def main(args):
     ## device agnostic
-    device = 'cuda' if args.gpu == 1 and torch.cuda.is_available() else 'cpu'
+    device = 'cuda' if args.gpu == True and torch.cuda.is_available() else 'cpu'
 
     '''
     TODO: Initialize a model by calling the net function
@@ -178,7 +182,7 @@ def main(args):
     TODO: Create your loss and optimizer
     '''
     loss_criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameter(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     
     # create hook for debugging   
@@ -221,12 +225,12 @@ if __name__=='__main__':
     '''
     TODO: Specify any training args that you might need
     '''
-    parser.add_argument('--arch', type=str, default='resnet18', choices=['resnet18', 'vgg13',], help='Load a pre-trained model archictecture (default: resnet18)')
+    parser.add_argument('--arch', type=str, default='vgg13', choices=['resnet18', 'vgg13',], help='Load a pre-trained model archictecture (default: resnet18)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
     parser.add_argument('--batch_size', type=int, default=64, help='Enter number of train batch size (default: 64)')
     parser.add_argument('--test_batch_size', type=int, default=32, help='Enter number of test batch size (default: 32)')
-    parser.add_argument('--gpu', type=str2bool, default=True, help='Enable GPU acceleration for training (default: True)')
+    parser.add_argument('--gpu', type=bool, default=True, help='Enable GPU acceleration for training (default: True)')
 
     # Container environment
     parser.add_argument("--hosts", type=list, default=json.loads(os.environ["SM_HOSTS"]))
