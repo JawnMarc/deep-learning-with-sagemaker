@@ -12,6 +12,10 @@ from torchvision import datasets
 
 import argparse
 import os, json, sys
+
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 # from smdebug.profiler.utils import str2bool
 
 
@@ -28,11 +32,11 @@ def test(model, data, citreon, device):
     with torch.no_grad():
         for inputs, labels in data['test']:
             inputs, labels = inputs.to(device), labels.to(device)
-            output = model(input)
-            loss = citreon(output, labels)
-            _, preds = torch.max(output, 1)
+            outputs = model(inputs)
+            loss = citreon(outputs, labels)
+            _, preds = torch.max(outputs, 1)
 
-            test_loss += loss.item() * input.size(0)
+            test_loss += loss.item() * inputs.size(0)
             test_acc += torch.sum(preds == labels.data)
 
         epoch_loss = test_loss/len(data['test'].dataset)
@@ -46,7 +50,7 @@ def train(model, data, criterion, optimizer,num_epochs, device):
     TODO: Complete this function that can take a model and
           data loaders for training and will get train the model
           Remember to include any debugging/profiling hooks that you might need
-    '''
+    '''        
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -86,16 +90,16 @@ def train(model, data, criterion, optimizer,num_epochs, device):
             epoch_acc = correct.double()/len(data[phase].dataset)
 
             print(f'{phase}: \tLoss: {epoch_loss} \tAcc: {epoch_acc}')
+            
 
-
-def net(model_name):
+def net(model_name, num_classes):
     '''
     TODO: Complete this function that initializes your model
           Remember to use a pretrained model
     '''
-    num_classes = 133 # number of classes in dataset
+    # num_classes = 133 # number of classes in dataset
     # load a pre-trained network
-    model = models.__dict__[model_name](pretrained=True)
+    model = models.__dict__[model_name](weights="DEFAULT")
 
     #Freeze parameters
     for parameter in model.parameters():
@@ -108,11 +112,14 @@ def net(model_name):
             nn.Linear(input_feat, num_classes)
         )
 
-    elif model_name == 'vgg13':
-        input_feat = model.classifier[6].in_features
-        model.classifier[6] = nn.Sequential(
+    elif model_name == 'densenet121':
+        input_feat = model.classifier.in_features
+        model.classifier = nn.Sequential(
             nn.Linear(input_feat, num_classes)
         )
+    # model = models.resnet18(weights="DEFAULT")
+    # input_feat = model.fc.in_features
+    # model.fc = nn.Linear(input_feat, 133)
 
     return model
 
@@ -128,18 +135,21 @@ def create_data_loaders(data, batch_size):
 
     data_transforms = {
         'train': transforms.Compose([
+            transforms.RandomResizedCrop(224),
             transforms.RandomRotation(45),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD)
             ]),
         'valid': transforms.Compose([
-            # transforms.Resize(224),
-            # transforms.CenterCrop(224),
+            transforms.Resize(224),
+            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD)
             ]),
         'test': transforms.Compose([
+            transforms.Resize(224),
+            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD)
             ]),
@@ -157,8 +167,10 @@ def create_data_loaders(data, batch_size):
         x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True)
         for x in ['train', 'valid', 'test']
     }
+    
+    num_classes = len(image_datasets['train'].classes)
 
-    return dataloaders_dict
+    return dataloaders_dict, num_classes
 
 
 
@@ -166,10 +178,18 @@ def main(args):
     ## device agnostic
     device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
 
+    
     '''
-    TODO: Initialize a model by calling the net function
+    create_data_loaders returns a dictionery. Key names: 'train', 'val', 'test'
     '''
-    model = net(args.arch)
+    dataloader_dict, num_class = create_data_loaders(args.data_dir, args.batch_size)
+
+    
+    
+    '''
+    TODO: Initialize a model by calling the net function.
+    '''
+    model = net(args.arch, num_class)
     model.to(device) ## move model to device, GPU if avalaible
 
 
@@ -187,17 +207,10 @@ def main(args):
 
 
     '''
-    create_data_loaders returns a dictionery. Key names: 'train', 'val', 'test'
-    '''
-    dataloader_dict = create_data_loaders(args.data_dir, args.batch_size)
-
-
-
-    '''
     TODO: Call the train function to start training your model
     Remember that you will need to set up a way to get training data from S3
     '''
-    model=train(model, dataloader_dict, loss_criterion, optimizer, args.epochs, device)
+    train(model, dataloader_dict, loss_criterion, optimizer, args.epochs, device)
 
 
 
@@ -221,7 +234,7 @@ if __name__=='__main__':
     '''
     TODO: Specify any training args that you might need
     '''
-    parser.add_argument('--arch', type=str, default='vgg13', choices=['resnet18', 'vgg13'], help='Load a pre-trained model archictecture (default: resnet18)')
+    parser.add_argument('--arch', type=str, default='resnet18', choices=['resnet18', 'densenet121'], help='Load a pre-trained model archictecture (default: resnet18)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
     parser.add_argument('--batch_size', type=int, default=64, help='Enter number of train batch size (default: 64)')

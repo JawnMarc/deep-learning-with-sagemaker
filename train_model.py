@@ -13,6 +13,8 @@ from torchvision import datasets
 import argparse
 import os, json, sys
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 #TODO: Import dependencies for Debugging andd Profiling
 import smdebug.pytorch as smd
@@ -34,11 +36,11 @@ def test(model, dataloader, citreon, device, hook):
     with torch.no_grad():
         for inputs, labels in dataloader['test']:
             inputs, labels = inputs.to(device), labels.to(device)
-            output = model(input)
+            output = model(inputs)
             loss = citreon(output, labels)
             _, preds = torch.max(output, 1)
 
-            test_loss += loss.item() * input.size(0)
+            test_loss += loss.item() * inputs.size(0)
             test_acc += torch.sum(preds == labels.data)
 
         epoch_loss = test_loss/len(dataloader['test'].dataset)
@@ -97,7 +99,7 @@ def train(model, dataloader, criterion, optimizer,num_epochs, device, hook):
             epoch_acc = correct.double()/len(dataloader[phase].dataset)
 
             print(f'{phase}: \tLoss: {epoch_loss} \tAcc: {epoch_acc}')
-
+    
 
 
 def net(model_name):
@@ -134,18 +136,21 @@ def create_data_loaders(data, batch_size):
 
     data_transforms = {
         'train': transforms.Compose([
+            transforms.RandomResizedCrop(224),
             transforms.RandomRotation(45),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD)
             ]),
         'valid': transforms.Compose([
-            # transforms.Resize(224),
-            # transforms.CenterCrop(224),
+            transforms.Resize(224),
+            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD)
             ]),
         'test': transforms.Compose([
+            transforms.Resize(224),
+            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD)
             ]),
@@ -153,6 +158,7 @@ def create_data_loaders(data, batch_size):
 
     # create training, validation and test datasets
     image_datasets = {
+        # x: datasets.ImageFolder(f'{data}/{x}', data_transforms[x])
         x: datasets.ImageFolder(os.path.join(data, x), data_transforms[x])
         for x in ['train', 'valid', 'test']
     }
@@ -160,55 +166,55 @@ def create_data_loaders(data, batch_size):
     # create training, validation and test dataloaders
     dataloaders_dict = {
         x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True)
-        for x in ['train', 'valid', 'test']}
+        for x in ['train', 'valid', 'test']
+    }
+    
+    num_classes = len(image_datasets['train'].classes)
 
-    return dataloaders_dict
+    return dataloaders_dict, num_classes
 
 
 
 def main(args):
     ## device agnostic
-    device = 'cuda' if args.gpu == True and torch.cuda.is_available() else 'cpu'
+    device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
+    
+    '''
+    create_data_loaders returns a dictionery. Key names: 'train', 'val', 'test'
+    '''
+    dataloader_dict, num_class = create_data_loaders(args.data_dir, args.batch_size)
 
+    
     '''
-    TODO: Initialize a model by calling the net function
+    TODO: Initialize a model by calling the net function.
     '''
-    model = net(args.arch)
+    model = net(args.arch, num_class)
     model.to(device) ## move model to device, GPU if avalaible
-
 
     
     '''
     TODO: Create your loss and optimizer
     '''
     loss_criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    
-    # create hook for debugging   
-    hook = smd.Hook.create_from_json_file()
-    hook.register_hook(model)
-    hook.register_loss(optimizer)
-
-    '''
-    create_data_loaders returns a dictionery. Key names: 'train', 'val', 'test'
-    '''
-    dataloader = create_data_loaders(args.data_dir, args.batch_size)
-
+    if args.arch.startswith('resnet'):
+        optimizer = optim.Adam(model.fc.parameters(), lr=args.lr)
+    else:
+        optimizer = optim.Adam(model.classifier.parameters(), lr=args.lr)
 
 
     '''
     TODO: Call the train function to start training your model
     Remember that you will need to set up a way to get training data from S3
     '''
-    model=train(model, dataloader, loss_criterion, optimizer, args.epochs, device, hook)
+    train(model, dataloader_dict, loss_criterion, optimizer, args.epochs, device)
 
 
 
     '''
     TODO: Test the model to see its accuracy
     '''
-    test(model, dataloader['test'], loss_criterion, device, hook)
+    test(model, dataloader_dict, loss_criterion, device)
 
 
 
@@ -217,7 +223,6 @@ def main(args):
     '''
     path = os.path.join(args.model_dir, 'model.pth')
     torch.save(model, path)
-
 
 
 if __name__=='__main__':
@@ -238,7 +243,5 @@ if __name__=='__main__':
     parser.add_argument("--model-dir", type=str, default=os.environ["SM_MODEL_DIR"])
     parser.add_argument("--data-dir", type=str, default=os.environ["SM_CHANNEL_TRAINING"])
     parser.add_argument("--num-gpus", type=int, default=os.environ["SM_NUM_GPUS"])
-
     args=parser.parse_args()
-
     main(args)
