@@ -42,7 +42,7 @@ def test(model, data, citreon, device):
         epoch_loss = test_loss/len(data['test'].dataset)
         accuracy = test_acc.double()/len(data['test'].dataset)
 
-        print(f'Test: \tLoss: {epoch_loss} \t Test Acc: {accuracy}')
+        print(f'test loss: {epoch_loss}    test accuracy: {accuracy}')
 
 
 def train(model, data, criterion, optimizer,num_epochs, device):
@@ -89,10 +89,10 @@ def train(model, data, criterion, optimizer,num_epochs, device):
             epoch_loss = running_loss/len(data[phase].dataset)
             epoch_acc = correct.double()/len(data[phase].dataset)
 
-            print(f'{phase}: \tLoss: {epoch_loss} \tAcc: {epoch_acc}')
+            print(f'{phase} loss: {epoch_loss}    {phase} accuracy: {epoch_acc}')
             
 
-def net(model_name, num_classes):
+def net(model_name, num_classes, hidden_units, dropout_rate):
     '''
     TODO: Complete this function that initializes your model
           Remember to use a pretrained model
@@ -109,13 +109,17 @@ def net(model_name, num_classes):
     if model_name == 'resnet18':
         input_feat = model.fc.in_features
         model.fc = nn.Sequential(
-            nn.Linear(input_feat, num_classes)
+            nn.Linear(input_feat, hidden_units),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_units, num_classes),
         )
 
     elif model_name == 'densenet121':
         input_feat = model.classifier.in_features
         model.classifier = nn.Sequential(
-            nn.Linear(input_feat, num_classes)
+            nn.Linear(input_feat, hidden_units),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_units, num_classes),        
         )
     # model = models.resnet18(weights="DEFAULT")
     # input_feat = model.fc.in_features
@@ -189,7 +193,7 @@ def main(args):
     '''
     TODO: Initialize a model by calling the net function.
     '''
-    model = net(args.arch, num_class)
+    model = net(args.arch, num_class, args.hidden_units, args.dropout_rate)
     model.to(device) ## move model to device, GPU if avalaible
 
 
@@ -237,6 +241,8 @@ if __name__=='__main__':
     parser.add_argument('--arch', type=str, default='resnet18', choices=['resnet18', 'densenet121'], help='Load a pre-trained model archictecture (default: resnet18)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
+    parser.add_argument('--dropout_rate', type=float, default=0.5, help='Dropout rate percentage bn 0.1 to 1 (default: 0.5)')
+    parser.add_argument('--hidden_units', type=int, default=512, help='Hidden layer units (default: 512)')
     parser.add_argument('--batch_size', type=int, default=64, help='Enter number of train batch size (default: 64)')
     parser.add_argument('--test_batch_size', type=int, default=32, help='Enter number of test batch size (default: 32)')
     parser.add_argument('--gpu', type=bool, default=True, help='Enable GPU acceleration for training (default: True)')
