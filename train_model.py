@@ -21,38 +21,38 @@ import smdebug.pytorch as smd
 from smdebug.profiler.utils import str2bool
 
 
-def test(model, dataloader, citreon, device, hook):
+def test(model, data, citreon, device, hook):
     '''
     TODO: Complete this function that can take a model and a
           testing data loader and will get the test accuray/loss of the model
           Remember to include any debugging/profiling hooks that you might need
     '''
-    
-    hook.set_mode(smd.modes.EVAL)
     model.eval()
+    hook.set_mode(smd.modes.EVAL)
+    
     test_loss = 0
     test_acc = 0
 
     with torch.no_grad():
-        for inputs, labels in dataloader['test']:
+        for inputs, labels in data['test']:
             inputs, labels = inputs.to(device), labels.to(device)
-            output = model(inputs)
-            loss = citreon(output, labels)
-            _, preds = torch.max(output, 1)
+            outputs = model(inputs)
+            loss = citreon(outputs, labels)
+            _, preds = torch.max(outputs, 1)
 
             test_loss += loss.item() * inputs.size(0)
             test_acc += torch.sum(preds == labels.data)
 
-        epoch_loss = test_loss/len(dataloader['test'].dataset)
-        accuracy = test_acc.double()/len(dataloader['test'].dataset)
+        epoch_loss = test_loss/len(data['test'].dataset)
+        accuracy = test_acc.double()/len(data['test'].dataset)
 
-        print(f'Test: \tLoss: {epoch_loss} \t Test Acc: {accuracy}')
-
-
+        print(f'test loss: {epoch_loss}    test accuracy: {accuracy}')
 
 
 
-def train(model, dataloader, criterion, optimizer,num_epochs, device, hook):
+
+
+def train(model, data, criterion, optimizer,num_epochs, device, hook):
     '''
     TODO: Complete this function that can take a model and
           data loaders for training and will get train the model
@@ -69,11 +69,12 @@ def train(model, dataloader, criterion, optimizer,num_epochs, device, hook):
             else:
                 model.eval()
                 hook.set_mode(smd.modes.EVAL)
+            
 
             running_loss = 0
             correct = 0
 
-            for inputs, labels in dataloader[phase]:
+            for inputs, labels in data[phase]:
                 inputs, labels = inputs.to(device), labels.to(device)
 
                 # reset gradient to zero
@@ -95,33 +96,43 @@ def train(model, dataloader, criterion, optimizer,num_epochs, device, hook):
                 running_loss += loss.item() * inputs.size(0)
                 correct += torch.sum(preds == labels.data)
 
-            epoch_loss = running_loss/len(dataloader[phase].dataset)
-            epoch_acc = correct.double()/len(dataloader[phase].dataset)
+            epoch_loss = running_loss/len(data[phase].dataset)
+            epoch_acc = correct.double()/len(data[phase].dataset)
 
-            print(f'{phase}: \tLoss: {epoch_loss} \tAcc: {epoch_acc}')
+            print(f'{phase} loss: {epoch_loss}    {phase} accuracy: {epoch_acc}')
     
 
 
-def net(model_name):
+def net(model_name, num_classes, hidden_units, dropout_rate):
     '''
     TODO: Complete this function that initializes your model
           Remember to use a pretrained model
     '''
-
-    num_classes = 133 # number of classes in dataset
+    # num_classes = 133 # number of classes in dataset
     # load a pre-trained network
-    model = models.__dict__[model_name](pretrained=True)
-    
+    model = models.__dict__[model_name](weights="DEFAULT")
+
+    #Freeze parameters
+    for parameter in model.parameters():
+        parameter.requires_grad = False
+
     # load resnet18
     if model_name == 'resnet18':
         input_feat = model.fc.in_features
-        model.fc = nn.Linear(input_feat, num_classes)
+        model.fc = nn.Sequential(
+            nn.Linear(input_feat, hidden_units),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_units, num_classes),
+        )
 
-    elif model_name == 'vgg13':
-        input_feat = model.classifier[6].in_features
-        model.classifier[6] = nn.Linear(input_feat, num_classes)
-
-    # model = models.resnet18(pretrained=True)
+    elif model_name == 'densenet121':
+        input_feat = model.classifier.in_features
+        model.classifier = nn.Sequential(
+            nn.Linear(input_feat, hidden_units),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_units, num_classes),        
+        )
+        
     return model
 
 
@@ -180,7 +191,7 @@ def main(args):
     device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
     
     '''
-    create_data_loaders returns a dictionery. Key names: 'train', 'val', 'test'
+    create_data_loaders returns a dictionery. Key names: 'train', 'valid', 'test'
     '''
     dataloader_dict, num_class = create_data_loaders(args.data_dir, args.batch_size)
 
@@ -188,7 +199,7 @@ def main(args):
     '''
     TODO: Initialize a model by calling the net function.
     '''
-    model = net(args.arch, num_class)
+    model = net(args.arch, num_class, args.hidden_units, args.dropout_rate)
     model.to(device) ## move model to device, GPU if avalaible
 
     
@@ -202,19 +213,25 @@ def main(args):
     else:
         optimizer = optim.Adam(model.classifier.parameters(), lr=args.lr)
 
+        
+    # create hook for debugging
+    hook = smd.Hook.create_from_json_file()
+    hook.register_hook(model)
+    hook.register_loss(loss_criterion)
+    
 
     '''
     TODO: Call the train function to start training your model
     Remember that you will need to set up a way to get training data from S3
     '''
-    train(model, dataloader_dict, loss_criterion, optimizer, args.epochs, device)
+    train(model, dataloader_dict, loss_criterion, optimizer, args.epochs, device, hook)
 
 
 
     '''
     TODO: Test the model to see its accuracy
     '''
-    test(model, dataloader_dict, loss_criterion, device)
+    test(model, dataloader_dict, loss_criterion, device, hook)
 
 
 
@@ -230,9 +247,11 @@ if __name__=='__main__':
     '''
     TODO: Specify any training args that you might need
     '''
-    parser.add_argument('--arch', type=str, default='vgg13', choices=['resnet18', 'vgg13',], help='Load a pre-trained model archictecture (default: resnet18)')
+    parser.add_argument('--arch', type=str, default='resnet18', choices=['resnet18', 'densenet121'], help='Load a pre-trained model archictecture (default: resnet18)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
+    parser.add_argument('--dropout_rate', type=float, default=0.5, help='Dropout rate percentage bn 0.1 to 1 (default: 0.5)')
+    parser.add_argument('--hidden_units', type=int, default=512, help='Hidden layer units (default: 512)')
     parser.add_argument('--batch_size', type=int, default=64, help='Enter number of train batch size (default: 64)')
     parser.add_argument('--test_batch_size', type=int, default=32, help='Enter number of test batch size (default: 32)')
     parser.add_argument('--gpu', type=bool, default=True, help='Enable GPU acceleration for training (default: True)')

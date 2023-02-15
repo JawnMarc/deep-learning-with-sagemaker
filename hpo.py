@@ -121,10 +121,7 @@ def net(model_name, num_classes, hidden_units, dropout_rate):
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_units, num_classes),        
         )
-    # model = models.resnet18(weights="DEFAULT")
-    # input_feat = model.fc.in_features
-    # model.fc = nn.Linear(input_feat, 133)
-
+        
     return model
 
 
@@ -184,7 +181,7 @@ def main(args):
 
     
     '''
-    create_data_loaders returns a dictionery. Key names: 'train', 'val', 'test'
+    create_data_loaders returns a dictionery. Key names: 'train', 'valid', 'test'
     '''
     dataloader_dict, num_class = create_data_loaders(args.data_dir, args.batch_size)
 
