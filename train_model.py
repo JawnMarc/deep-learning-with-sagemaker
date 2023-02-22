@@ -121,6 +121,7 @@ def net(model_name, num_classes, hidden_units, dropout_rate):
         input_feat = model.fc.in_features
         model.fc = nn.Sequential(
             nn.Linear(input_feat, hidden_units),
+            nn.ReLU(),
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_units, num_classes),
         )
@@ -129,12 +130,12 @@ def net(model_name, num_classes, hidden_units, dropout_rate):
         input_feat = model.classifier.in_features
         model.classifier = nn.Sequential(
             nn.Linear(input_feat, hidden_units),
+            nn.ReLU(),
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_units, num_classes),        
         )
         
     return model
-
 
 
 def create_data_loaders(data, batch_size):
@@ -184,7 +185,8 @@ def create_data_loaders(data, batch_size):
 
     return dataloaders_dict, num_classes
 
-
+   
+    
 
 def main(args):
     ## device agnostic
@@ -239,8 +241,8 @@ def main(args):
     TODO: Save the trained model
     '''
     path = os.path.join(args.model_dir, 'model.pth')
-    torch.save(model, path)
-
+    torch.save(model, path)  
+    
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser()
