@@ -15,7 +15,7 @@ def net():
     model.fc = nn.Sequential(
             nn.Linear(input_feat, 256),
             nn.ReLU(),
-            nn.Dropout(0.65),
+            nn.Dropout(0.2),
             nn.Linear(256, 133))
     return model
 
@@ -24,10 +24,8 @@ def model_fn(model_dir):
     model = net()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # if torch.cuda.device_count() > 1:
-    #     model = nn.DataParallel(model)
     with open(os.path.join(model_dir, 'model.pth'), 'rb') as mfile:
-        model.load_state_dict(torch.load(mfile,  map_location=device))
+        model.load_state_dict(torch.load(mfile), map_location=device)
 
     model.to(device).eval()
 
@@ -56,7 +54,7 @@ def predict_fn(input_object, model):
     '''
     Takes the deserialized request object and performs inference against the loaded model.
     '''
-    # model.eval()
+    model.eval()
     with torch.no_grad():
         pred = model(input_object.unsqueeze(0))
     return pred
