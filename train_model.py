@@ -15,10 +15,16 @@ import os, json, sys
 
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+torch.backends.cudnn.benchmark = True
+
 
 #TODO: Import dependencies for Debugging andd Profiling
-import smdebug.pytorch as smd
-from smdebug.profiler.utils import str2bool
+try:
+    import smdebug.pytorch as smd
+    from smdebug.profiler.utils import str2bool
+except:
+    pass
+
 
 
 def test(model, data, citreon, device, hook):
@@ -125,7 +131,6 @@ def net(model_name, num_classes, hidden_units, dropout_rate):
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_units, num_classes),
         )
-
     elif model_name == 'densenet121':
         input_feat = model.classifier.in_features
         model.classifier = nn.Sequential(
@@ -133,8 +138,7 @@ def net(model_name, num_classes, hidden_units, dropout_rate):
             nn.ReLU(),
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_units, num_classes),        
-        )
-        
+        )        
     return model
 
 
@@ -210,10 +214,10 @@ def main(args):
     '''
     loss_criterion = nn.CrossEntropyLoss()
 
-    if args.arch.startswith('resnet'):
-        optimizer = optim.Adam(model.fc.parameters(), lr=args.lr)
-    else:
-        optimizer = optim.Adam(model.classifier.parameters(), lr=args.lr)
+    # if args.arch.startswith('resnet'):
+        # optimizer = optim.Adam(model.fc.parameters(), lr=args.lr)
+    # else:
+    optimizer = optim.Adam(model.classifier.parameters(), lr=args.lr)
 
         
     # create hook for debugging
@@ -241,7 +245,7 @@ def main(args):
     TODO: Save the trained model
     '''
     path = os.path.join(args.model_dir, 'model.pth')
-    torch.save(model, path)  
+    torch.save(model.state_dict(), path)  
     
 
 if __name__=='__main__':
@@ -249,7 +253,7 @@ if __name__=='__main__':
     '''
     TODO: Specify any training args that you might need
     '''
-    parser.add_argument('--arch', type=str, default='resnet18', choices=['resnet18', 'densenet121'], help='Load a pre-trained model archictecture (default: resnet18)')
+    parser.add_argument('--arch', type=str, default='densenet121', choices=['resnet50', 'densenet121'], help='Load a pre-trained model archictecture (default: resnet18)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
     parser.add_argument('--dropout_rate', type=float, default=0.5, help='Dropout rate percentage bn 0.1 to 1 (default: 0.5)')

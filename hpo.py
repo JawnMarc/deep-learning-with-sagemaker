@@ -226,7 +226,7 @@ def main(args):
     TODO: Save the trained model
     '''
     path = os.path.join(args.model_dir, 'model.pth')
-    torch.save(model, path)
+    torch.save(model.state_dict(), path)
 
 
 
@@ -235,7 +235,7 @@ if __name__=='__main__':
     '''
     TODO: Specify any training args that you might need
     '''
-    parser.add_argument('--arch', type=str, default='resnet18', choices=['resnet18', 'densenet121'], help='Load a pre-trained model archictecture (default: resnet18)')
+    parser.add_argument('--arch', type=str, default='densenet121', choices=['resnet18', 'densenet121'], help='Load a pre-trained model archictecture (default: densenet121)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
     parser.add_argument('--dropout_rate', type=float, default=0.5, help='Dropout rate percentage bn 0.1 to 1 (default: 0.5)')
