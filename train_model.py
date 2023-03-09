@@ -26,7 +26,6 @@ except:
     pass
 
 
-
 def test(model, data, citreon, device, hook):
     '''
     TODO: Complete this function that can take a model and a
@@ -53,8 +52,6 @@ def test(model, data, citreon, device, hook):
         accuracy = test_acc.double()/len(data['test'].dataset)
 
         print(f'test loss: {epoch_loss}    test accuracy: {accuracy}')
-
-
 
 
 
@@ -119,8 +116,8 @@ def net(model_name, num_classes, hidden_units, dropout_rate):
     model = models.__dict__[model_name](weights="DEFAULT")
 
     #Freeze parameters
-    for parameter in model.parameters():
-        parameter.requires_grad = False
+    for param in model.parameters():
+        param.requires_grad = False
 
     # load resnet18
     if model_name == 'resnet18':
@@ -138,7 +135,15 @@ def net(model_name, num_classes, hidden_units, dropout_rate):
             nn.ReLU(),
             nn.Dropout(dropout_rate),
             nn.Linear(hidden_units, num_classes),        
-        )        
+        )
+    elif model_name == 'vgg11':
+        input_feat = model.classifier[0].in_features
+        model.classifier = nn.Sequential(
+            nn.Linear(input_feat, hidden_units),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_units, num_classes),        
+        )   
     return model
 
 
@@ -253,7 +258,7 @@ if __name__=='__main__':
     '''
     TODO: Specify any training args that you might need
     '''
-    parser.add_argument('--arch', type=str, default='densenet121', choices=['resnet50', 'densenet121'], help='Load a pre-trained model archictecture (default: resnet18)')
+    parser.add_argument('--arch', type=str, default='vgg11', choices=['resnet50', 'densenet121', 'vgg11'], help='Load a pre-trained model archictecture (default: resnet18)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
     parser.add_argument('--dropout_rate', type=float, default=0.5, help='Dropout rate percentage bn 0.1 to 1 (default: 0.5)')
