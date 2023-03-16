@@ -8,11 +8,12 @@ from torchvision import models, transforms
 
 def net():
     model = models.densenet121(weights="DEFAULT")
-    for parameter in model.parameters():
-        parameter.requires_grad = False
+    # for parameter in model.parameters():
+    #     parameter.requires_grad = False
 
     input_feat = model.classifier.in_features
-    model.fc = nn.Sequential(
+    
+    model.classifier = nn.Sequential(
             nn.Linear(input_feat, 512),
             nn.ReLU(),
             nn.Dropout(0.4),
@@ -22,11 +23,15 @@ def net():
 
 def model_fn(model_dir):
     model = net()
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    with open(os.path.join(model_dir, 'model.pth'), 'rb') as data:
+    
+    model_path = os.path.join(model_dir, 'model.pth')
+    with open(model_path, 'rb') as data:
         model.load_state_dict(torch.load(data))
         
+        
+    # model = nn.DataParallel(model)
     model.to(device).eval()
 
     return model
@@ -37,7 +42,7 @@ def input_fn(request_body, request_content_type):
     '''
     Takes request data and deserializes the data into an object for prediction
     '''
-    assert request_content_type == 'images/jpeg'
+    assert request_content_type == 'image/jpg'
     image = Image.open(io.BytesIO(request_body))
 
     trans = transforms.Compose([

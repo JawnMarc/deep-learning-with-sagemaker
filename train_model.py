@@ -119,8 +119,8 @@ def net(model_name, num_classes, hidden_units, dropout_rate):
     model = models.__dict__[model_name](weights="DEFAULT")
 
     #Freeze parameters
-    for parameter in model.parameters():
-        parameter.requires_grad = False
+    # for parameter in model.parameters():
+    #     parameter.requires_grad = False
 
     # load resnet18
     if model_name == 'resnet18':
@@ -206,6 +206,8 @@ def main(args):
     TODO: Initialize a model by calling the net function.
     '''
     model = net(args.arch, num_class, args.hidden_units, args.dropout_rate)
+    model = nn.DataParallel(model)
+    
     model.to(device) ## move model to device, GPU if avalaible
 
     
@@ -217,7 +219,9 @@ def main(args):
     # if args.arch.startswith('resnet'):
         # optimizer = optim.Adam(model.fc.parameters(), lr=args.lr)
     # else:
-    optimizer = optim.Adam(model.classifier.parameters(), lr=args.lr)
+    # optimizer = optim.Adam(model.classifier.parameters(), lr=args.lr)
+    
+    optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
         
     # create hook for debugging
@@ -245,7 +249,8 @@ def main(args):
     TODO: Save the trained model
     '''
     path = os.path.join(args.model_dir, 'model.pth')
-    torch.save(model.state_dict(), path)  
+    # torch.save(model.state_dict(), path)  
+    torch.save(model.module.state_dict(), path)  
     
 
 if __name__=='__main__':
