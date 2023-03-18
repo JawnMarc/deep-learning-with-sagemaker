@@ -7,17 +7,22 @@ from torchvision import models, transforms
 
 
 def net():
-    model = models.densenet121(weights="DEFAULT")
-    # for parameter in model.parameters():
-    #     parameter.requires_grad = False
-
-    input_feat = model.classifier.in_features
+    # model = models.densenet121(weights="DEFAULT")
+    # input_feat = model.classifier.in_features
+    # model.classifier = nn.Sequential(
+    #         nn.Linear(input_feat, 384),
+    #         nn.ReLU(),
+    #         nn.Dropout(0.5),
+    #         nn.Linear(384, 133))
     
-    model.classifier = nn.Sequential(
-            nn.Linear(input_feat, 512),
+    model = models.resnet18(weights="DEFAULT")
+    input_feat = model.fc.in_features
+    model.fc = nn.Sequential(
+            nn.Linear(input_feat, 384),
             nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(512, 133))
+            nn.Dropout(0.5),
+            nn.Linear(384, 133))
+    
     return model
 
 
@@ -27,12 +32,12 @@ def model_fn(model_dir):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     model_path = os.path.join(model_dir, 'model.pth')
+    
     with open(model_path, 'rb') as data:
         model.load_state_dict(torch.load(data))
-        
-        
-    # model = nn.DataParallel(model)
-    model.to(device).eval()
+    
+    model.eval()        
+    model.to(device)
 
     return model
 

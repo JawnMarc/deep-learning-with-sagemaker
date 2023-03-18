@@ -102,8 +102,8 @@ def net(model_name, num_classes, hidden_units, dropout_rate):
     model = models.__dict__[model_name](weights="DEFAULT")
 
     #Freeze parameters
-    for parameter in model.parameters():
-        parameter.requires_grad = False
+    # for parameter in model.parameters():
+    #     parameter.requires_grad = False
 
     # load resnet18
     if model_name == 'resnet18':
@@ -191,6 +191,8 @@ def main(args):
     TODO: Initialize a model by calling the net function.
     '''
     model = net(args.arch, num_class, args.hidden_units, args.dropout_rate)
+    model = nn.DataParallel(model) # to prevent missing keys in state_dict
+    
     model.to(device) ## move model to device, GPU if avalaible
 
 
@@ -200,10 +202,10 @@ def main(args):
     '''
     loss_criterion = nn.CrossEntropyLoss()
 
-    if args.arch.startswith('resnet'):
-        optimizer = optim.Adam(model.fc.parameters(), lr=args.lr)
-    else:
-        optimizer = optim.Adam(model.classifier.parameters(), lr=args.lr)
+    # if args.arch.startswith('resnet'):
+    #     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    # else:
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
 
 
@@ -226,7 +228,9 @@ def main(args):
     TODO: Save the trained model
     '''
     path = os.path.join(args.model_dir, 'model.pth')
-    torch.save(model.state_dict(), path)
+    # torch.save(model.state_dict(), path)
+    torch.save(model.module.state_dict(), path)   # if nn.DataParallel is used to load model
+    
 
 
 
@@ -235,7 +239,7 @@ if __name__=='__main__':
     '''
     TODO: Specify any training args that you might need
     '''
-    parser.add_argument('--arch', type=str, default='densenet121', choices=['resnet18', 'densenet121'], help='Load a pre-trained model archictecture (default: densenet121)')
+    parser.add_argument('--arch', type=str, default='densenet121', choices=['vgg11', 'densenet121'], help='Load a pre-trained model archictecture (default: densenet121)')
     parser.add_argument('--epochs', type=int, default=5, help='Number epochs for training (default: 5)')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (default: 0.001)')
     parser.add_argument('--dropout_rate', type=float, default=0.5, help='Dropout rate percentage bn 0.1 to 1 (default: 0.5)')
