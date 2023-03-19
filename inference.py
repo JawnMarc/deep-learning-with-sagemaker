@@ -17,6 +17,7 @@ def net():
     
     model = models.resnet18(weights="DEFAULT")
     input_feat = model.fc.in_features
+    
     model.fc = nn.Sequential(
             nn.Linear(input_feat, 384),
             nn.ReLU(),
