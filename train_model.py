@@ -35,7 +35,7 @@ def test(model, data, citreon, device, hook):
     '''
     model.eval()
     hook.set_mode(smd.modes.EVAL)
-    
+
     test_loss = 0
     test_acc = 0
 
@@ -75,7 +75,7 @@ def train(model, data, criterion, optimizer,num_epochs, device, hook):
             else:
                 model.eval()
                 hook.set_mode(smd.modes.EVAL)
-            
+
 
             running_loss = 0
             correct = 0
@@ -106,7 +106,7 @@ def train(model, data, criterion, optimizer,num_epochs, device, hook):
             epoch_acc = correct.double()/len(data[phase].dataset)
 
             print(f'{phase} loss: {epoch_loss}    {phase} accuracy: {epoch_acc}')
-    
+
 
 
 def net(model_name, num_classes, hidden_units, dropout_rate):
@@ -137,8 +137,8 @@ def net(model_name, num_classes, hidden_units, dropout_rate):
             nn.Linear(input_feat, hidden_units),
             nn.ReLU(),
             nn.Dropout(dropout_rate),
-            nn.Linear(hidden_units, num_classes),        
-        )        
+            nn.Linear(hidden_units, num_classes),
+        )
     return model
 
 
@@ -184,33 +184,33 @@ def create_data_loaders(data, batch_size):
         x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True)
         for x in ['train', 'valid', 'test']
     }
-    
+
     num_classes = len(image_datasets['train'].classes)
 
     return dataloaders_dict, num_classes
 
-   
-    
+
+
 
 def main(args):
     ## device agnostic
     device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
-    
+
     '''
     create_data_loaders returns a dictionery. Key names: 'train', 'valid', 'test'
     '''
     dataloader_dict, num_class = create_data_loaders(args.data_dir, args.batch_size)
 
-    
+
     '''
     TODO: Initialize a model by calling the net function.
     '''
     model = net(args.arch, num_class, args.hidden_units, args.dropout_rate)
     model = nn.DataParallel(model) # to prevent missing keys in state_dict
-    
+
     model.to(device) ## move model to device, GPU if avalaible
 
-    
+
     '''
     TODO: Create your loss and optimizer
     '''
@@ -220,15 +220,15 @@ def main(args):
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
     else:
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    
+
     # optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-        
+
     # create hook for debugging
     hook = smd.Hook.create_from_json_file()
     hook.register_hook(model)
     hook.register_loss(loss_criterion)
-    
+
 
     '''
     TODO: Call the train function to start training your model
@@ -249,9 +249,9 @@ def main(args):
     TODO: Save the trained model
     '''
     path = os.path.join(args.model_dir, 'model.pth')
-    # torch.save(model.state_dict(), path)  
+    # torch.save(model.state_dict(), path)
     torch.save(model.module.state_dict(), path)   # if nn.DataParallel is used to load model
-    
+
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser()
